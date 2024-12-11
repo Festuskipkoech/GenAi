@@ -30,6 +30,7 @@ if uploaded_file !=None:
 submit=st.button("Submit query")
 
 # if submit is clicked
-response=get_gemini_response(input, image)
-st.subheader("What the image is about")
-st.write(response) 
+if submit: 
+    response=get_gemini_response(input, image)
+    st.subheader("What the image is about")
+    st.write(response) 
