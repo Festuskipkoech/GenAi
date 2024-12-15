@@ -1,23 +1,24 @@
 from typing import List, Dict, Optional
-import openai
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip, concatenate_videoclips
+import requests
+import json
+from moviepy.editor import *
 from gtts import gTTS
 import torch
 from diffusers import StableDiffusionPipeline
 import numpy as np
+import streamlit as st
 
 class VideoGenerator:
-    def __init__(self, openai_key: str, stable_diffusion_model: str = "stabilityai/stable-diffusion-2"):
+    def __init__(self, gemini_api_key: str, stable_diffusion_model: str = "stabilityai/stable-diffusion-2"):
         """Initialize video generation system with necessary APIs"""
-        self.openai_key = openai_key
-        openai.api_key = openai_key
+        self.gemini_api_key = gemini_api_key
         
         # Initialize Stable Diffusion for visual generation
         self.image_generator = StableDiffusionPipeline.from_pretrained(
             stable_diffusion_model,
             torch_dtype=torch.float16
         ).to("cuda")
-        
+
     async def generate_lesson_script(
         self,
         topic: str,
@@ -25,7 +26,7 @@ class VideoGenerator:
         difficulty_level: str,
         target_age: Optional[int] = None
     ) -> Dict:
-        """Generate a detailed script for an educational video"""
+        """Generate a detailed script for an educational video using Gemini API"""
         prompt = f"""Create an educational video script about {topic}.
                     Target duration: {duration_minutes} minutes
                     Difficulty: {difficulty_level}
@@ -44,14 +45,29 @@ class VideoGenerator:
                     - objectives
                     - segments (each with narration and visual_description)
                     - quiz_questions"""
-                    
-        response = await openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
+        
+        headers = {
+            "Authorization": f"Bearer {self.gemini_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gemini-1",
+            "prompt": prompt,
+            "max_tokens": 1000,
+            "temperature": 0.7
+        }
+        
+        response = requests.post(
+            "https://api.gemini.google.com/v1/engines/gemini-1/completions",
+            headers=headers,
+            data=json.dumps(data)
         )
         
-        return response.choices[0].message.content
+        if response.status_code == 200:
+            return response.json().get("choices", [])[0].get("message", {}).get("content")
+        else:
+            raise Exception(f"Error: {response.status_code} - {response.text}")
 
     async def generate_visuals(
         self,
@@ -218,45 +234,38 @@ class InteractiveElements:
                 })
         return regions
 
-# Example usage:
+# Streamlit interface for real-time interaction
+st.title("Video Lesson Generator")
+
 async def main():
-    # Initialize video generator
-    generator = VideoGenerator(openai_key="your-api-key")
+    # Gemini API key should be securely passed here
+    gemini_api_key = st.text_input("Enter Gemini API Key", type="password")
     
-    # Generate script for a math lesson
-    script = await generator.generate_lesson_script(
-        topic="Introduction to Quadratic Equations",
-        duration_minutes=10,
-        difficulty_level="intermediate",
-        target_age=15
-    )
-    
-    # Generate visuals
-    visuals = await generator.generate_visuals(
-        script,
-        style="modern educational",
-        resolution=(1920, 1080)
-    )
-    
-    # Generate audio
-    audio = generator.generate_audio(
-        script,
-        voice="en-US",
-        speed=1.0
-    )
-    
-    # Compose final video
-    video_file = generator.compose_video(
-        script,
-        visuals,
-        audio,
-        "quadratic_equations_lesson.mp4"
-    )
-    
-    # Add interactive elements
-    interactive = InteractiveElements()
-    quiz_overlay = interactive.create_quiz(script, timestamp=300)  # Quiz at 5 minutes
-    clickable_regions = interactive.create_clickable_regions(script['segments'][0])
+    if gemini_api_key:
+        generator = VideoGenerator(gemini_api_key=gemini_api_key)
+        
+        # User inputs for video generation
+        topic = st.text_input("Topic", "Introduction to Quadratic Equations")
+        duration_minutes = st.slider("Duration (minutes)", 1, 60, 10)
+        difficulty_level = st.selectbox("Difficulty Level", ["Beginner", "Intermediate", "Advanced"])
+        
+        script = await generator.generate_lesson_script(
+            topic=topic,
+            duration_minutes=duration_minutes,
+            difficulty_level=difficulty_level,
+            target_age=None
+        )
+        
+        st.write("Generated Script:", script)
+        
+        # Generate visuals and audio
+        visuals = await generator.generate_visuals(script)
+        audio = generator.generate_audio(script)
+        
+        # Compose final video
+        video_file = generator.compose_video(script, visuals, audio, "lesson_video.mp4")
+        
+        st.video(video_file)
 
 if __name__ == "__main__":
     import asyncio
