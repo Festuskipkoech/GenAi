@@ -11,6 +11,8 @@ genai.configure(api_key = os.getenv("GOOGLE_API_KEY"))
 
 # function to load gemini pro model and get responses
 model=genai.GenerativeModel('gemini-1.5-flash')
+input =st.text_input("Input prompt: ", key="input")
+
 def get_gemini_response(input, image):
     if input !="":
         response=model.generate_content([input, image])
@@ -19,7 +21,6 @@ def get_gemini_response(input, image):
     return response.text
 # initialize the streamlit app
 st.header("Gemini app using streamlit")
-input =st.text_input("Input prompt: ", key="input")
 
 uploaded_file=st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png", "webp"])
 image=""
