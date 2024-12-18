@@ -11,4 +11,5 @@ numpy
 scikit-learn 
 pillow 
 opencv-python
- plotly
+plotly
+torchvision
