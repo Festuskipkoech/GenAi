@@ -233,7 +233,7 @@ def main():
         
         uploaded_file = st.file_uploader(
             "Upload an image of the plant leaf",
-            type=["jpg", "jpeg", "png"]
+            type=["jpg", "jpeg", "png", "wepb"]
         )        
         if uploaded_file is not None:
             image = Image.open(uploaded_file)
